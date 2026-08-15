@@ -24,6 +24,7 @@
     --warn: #F5A623;
     --bad: #FF6B5C;
     --bad-dim: #3D1C18;
+    --warn-dim: #3D2F14;
     --accent: #35D499;
     --radius-sm: 8px;
     --radius-md: 12px;
@@ -49,6 +50,7 @@
     --warn: #D98200;
     --bad: #E03E2E;
     --bad-dim: #FDE8E6;
+    --warn-dim: #FFF3DC;
     --accent: #0D9F67;
     --radius-sm: 8px;
     --radius-md: 12px;
@@ -261,6 +263,27 @@
     border-radius: 20px; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; font-weight: 600;
   }
   .catatan { font-size: 13.5px; color: var(--muted); line-height: 1.5; margin: 8px 0 10px; background: var(--panel-2); padding: 8px 12px; border-radius: 6px; }
+
+  /* ==================== NOTES LOG (Revisi / Kendala) ==================== */
+  .notes-log-preview { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 10px; }
+  .notes-log { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; margin-bottom: 4px; padding-right: 2px; }
+  .note-item { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 5px; }
+  .note-item-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .note-type-tag { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 9px; border-radius: 10px; white-space: nowrap; }
+  .note-ts { font-size: 10.5px; color: var(--muted-2); font-family: 'IBM Plex Mono', monospace; }
+  .note-text { font-size: 13px; color: var(--text); line-height: 1.5; white-space: pre-wrap; }
+  .note-del { background: transparent; border: none; color: var(--muted-2); cursor: pointer; font-size: 12px; padding: 2px 6px; border-radius: 4px; line-height: 1; transition: all 0.15s ease; }
+  .note-del:hover { color: var(--bad); background: var(--bad-dim); }
+  .note-empty { color: var(--muted-2); font-size: 12.5px; text-align: center; padding: 18px 12px; border: 1px dashed var(--line); border-radius: 8px; }
+  .note-more-hint { font-size: 11px; color: var(--muted-2); text-align: center; }
+  .note-form { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line); }
+  .note-form label { margin-bottom: -2px; }
+  .note-type-choices { display: flex; gap: 6px; flex-wrap: wrap; }
+  .note-type-chip { padding: 6px 13px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel-2); color: var(--muted); font-size: 12px; cursor: pointer; font-family: 'IBM Plex Sans', sans-serif; font-weight: 600; transition: all 0.15s ease; }
+  .note-type-chip:hover { border-color: var(--muted-2); color: var(--text); }
+  .note-type-chip.sel { color: #fff; font-weight: 700; border-color: transparent; }
+  .icon-btn.note-log-btn:hover { border-color: var(--warn); color: var(--warn); background: var(--warn-dim); }
+  .note-count-dot { background: var(--warn); color: #04231A; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700; border-radius: 9px; padding: 0 6px; min-width: 15px; text-align: center; display: inline-block; line-height: 15px; }
 
   .trail { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin: 8px 0; }
   .trail span { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--muted-2); }
@@ -1063,6 +1086,7 @@ function render(){
   trunkList.querySelectorAll('.dup-btn').forEach(b => b.addEventListener('click', onDuplicate));
   trunkList.querySelectorAll('.copy-btn').forEach(b => b.addEventListener('click', onCopyReport));
   trunkList.querySelectorAll('.kebab-btn').forEach(b => b.addEventListener('click', onToggleKebab));
+  trunkList.querySelectorAll('.note-log-btn').forEach(b => b.addEventListener('click', onOpenNotesLog));
 }
 
 function buildStepper(entry){
@@ -1100,6 +1124,10 @@ function buildWaReport(entry){
   if(entry.periode) msg += `📅 ${entry.periode}\n`;
   msg += `Status: *${entry.status}*\n`;
   if(entry.catatan) msg += `📝 ${entry.catatan}\n`;
+  if(entry.notes && entry.notes.length){
+    const last = entry.notes[entry.notes.length - 1];
+    msg += `🗒 [${last.type}] ${last.text}\n`;
+  }
   msg += `🕒 Diperbarui ${entry.timestamp}`;
   return msg;
 }
@@ -1206,6 +1234,22 @@ function buildEntryCard(entry, showTitle){
     return `<span class="${isLast ? 'cur' : ''}" style="${isLast ? `color:${stageColor(h.status)}` : ''}">${escapeHtml(h.status)}</span>${!isLast ? '<span class="sep">→</span>' : ''}`;
   }).join('');
 
+  const notes = entry.notes || [];
+  const notesPreviewHtml = notes.length ? `
+    <div class="notes-log-preview">
+      ${notes.slice(-2).map(n => `
+        <div class="note-item">
+          <div class="note-item-top">
+            <span class="note-type-tag" style="background:${noteTypeColorDim(n.type)};color:${noteTypeColor(n.type)};">${escapeHtml(n.type)}</span>
+            <span class="note-ts">${escapeHtml(n.ts)}</span>
+          </div>
+          <div class="note-text">${escapeHtml(n.text)}</div>
+        </div>
+      `).join('')}
+      ${notes.length > 2 ? `<div class="note-more-hint">+${notes.length - 2} catatan lainnya — lihat semua di tombol Catatan</div>` : ''}
+    </div>
+  ` : '';
+
   return `
       <div class="card">
         <div class="card-top">
@@ -1222,9 +1266,14 @@ function buildEntryCard(entry, showTitle){
         ${stages.length > 1 ? buildStepper(entry) : ''}
         ${trailHtml ? `<div class="trail">${trailHtml}</div>` : ''}
         ${entry.catatan ? `<div class="catatan">${escapeHtml(entry.catatan)}</div>` : ''}
+        ${notesPreviewHtml}
         <div class="card-bottom">
           <div class="ts" title="${escapeHtml(entry.timestamp)}">diperbarui ${timeAgo(entry) || entry.timestamp}</div>
           <div class="card-actions">
+            <button class="icon-btn note-log-btn" data-id="${entry.id}" title="Catatan revisi / kendala">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M9 12h6M9 16h6M9 8h1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 4h16v16H4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+              Catatan${notes.length ? ` <span class="note-count-dot">${notes.length}</span>` : ''}
+            </button>
             <button class="icon-btn edit edit-btn" data-id="${entry.id}">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
               Edit
@@ -1349,6 +1398,122 @@ function onEditStart(e){
   if(entry) openModal(entry);
 }
 
+// ==================== NOTES LOG (Revisi / Kendala) ====================
+const NOTE_TYPES = ['Revisi', 'Kendala', 'Update', 'Info'];
+let selectedNoteType = 'Revisi';
+
+function noteTypeColor(type){
+  switch(type){
+    case 'Kendala': return 'var(--bad)';
+    case 'Revisi': return 'var(--accent)';
+    case 'Update': return 'var(--warn)';
+    default: return 'var(--muted)';
+  }
+}
+function noteTypeColorDim(type){
+  switch(type){
+    case 'Kendala': return 'var(--bad-dim)';
+    case 'Revisi': return 'var(--ok-dim)';
+    case 'Update': return 'var(--warn-dim)';
+    default: return 'var(--panel-2)';
+  }
+}
+
+function onOpenNotesLog(e){
+  closeAllKebabs();
+  const id = e.currentTarget.dataset.id;
+  const entry = entries.find(en => en.id === id);
+  if(entry) openNotesModal(entry);
+}
+
+function openNotesModal(entry){
+  entry.notes = entry.notes || [];
+  selectedNoteType = 'Revisi';
+  modalOverlay.style.display = 'flex';
+  modalBox.innerHTML = buildNotesLogCard(entry);
+  bindNotesLogCard(modalBox, entry);
+}
+
+function buildNotesLogCard(entry){
+  const notes = entry.notes || [];
+  const notesHtml = notes.length ? notes.slice().reverse().map(n => `
+    <div class="note-item">
+      <div class="note-item-top">
+        <span class="note-type-tag" style="background:${noteTypeColorDim(n.type)};color:${noteTypeColor(n.type)};">${escapeHtml(n.type)}</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="note-ts">${escapeHtml(n.ts)}</span>
+          <button class="note-del" data-note-id="${n.id}" title="Hapus catatan">✕</button>
+        </div>
+      </div>
+      <div class="note-text">${escapeHtml(n.text)}</div>
+    </div>
+  `).join('') : `<div class="note-empty">Belum ada catatan revisi/kendala untuk pekerjaan ini.</div>`;
+
+  return `
+    <div class="modal-title">
+      Catatan — ${escapeHtml(entry.pekerjaan)}
+      <button class="modal-close" id="modalCloseBtn">✕</button>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin:-10px 0 14px;">${escapeHtml(entry.zona)}${entry.region ? ' · ' + escapeHtml(entry.region) : ''}${entry.periode ? ' · ' + escapeHtml(entry.periode) : ''}</div>
+    <div class="notes-log">${notesHtml}</div>
+    <div class="note-form">
+      <label>Jenis Catatan</label>
+      <div class="note-type-choices">
+        ${NOTE_TYPES.map(t => `
+          <button type="button" class="note-type-chip ${t === selectedNoteType ? 'sel' : ''}" data-type="${t}" style="${t === selectedNoteType ? `background:${noteTypeColor(t)};border-color:${noteTypeColor(t)};` : ''}">${t}</button>
+        `).join('')}
+      </div>
+      <label>Isi Catatan</label>
+      <textarea class="new-note-text" placeholder="mis. Nunggu konfirmasi mas eno / Revisi Kepatuhan K3 selesai / Terkendala data dari lapangan"></textarea>
+      <div class="edit-actions">
+        <button class="btn btn-ghost cancel-note-btn">Tutup</button>
+        <button class="btn btn-primary add-note-btn">+ Tambah Catatan</button>
+      </div>
+    </div>
+  `;
+}
+
+function bindNotesLogCard(node, entry){
+  node.querySelector('#modalCloseBtn').addEventListener('click', closeModal);
+  node.querySelector('.cancel-note-btn').addEventListener('click', closeModal);
+  node.querySelectorAll('.note-type-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedNoteType = btn.dataset.type;
+      const draft = node.querySelector('.new-note-text').value;
+      modalBox.innerHTML = buildNotesLogCard(entry);
+      bindNotesLogCard(modalBox, entry);
+      modalBox.querySelector('.new-note-text').value = draft;
+      modalBox.querySelector('.new-note-text').focus();
+    });
+  });
+  node.querySelector('.add-note-btn').addEventListener('click', () => onAddNote(entry));
+  node.querySelectorAll('.note-del').forEach(btn => {
+    btn.addEventListener('click', () => onDeleteNote(entry, btn.dataset.noteId));
+  });
+}
+
+async function onAddNote(entry){
+  const textEl = modalBox.querySelector('.new-note-text');
+  const text = textEl.value.trim();
+  if(!text){ textEl.focus(); return; }
+  entry.notes = entry.notes || [];
+  entry.notes.push({ id: 'n_' + Date.now(), ts: nowStamp(), type: selectedNoteType, text });
+  entry.updatedAtISO = new Date().toISOString();
+  await saveEntries();
+  modalBox.innerHTML = buildNotesLogCard(entry);
+  bindNotesLogCard(modalBox, entry);
+  render();
+  flashToast('✓ Catatan ditambahkan', false);
+}
+
+async function onDeleteNote(entry, noteId){
+  entry.notes = (entry.notes || []).filter(n => n.id !== noteId);
+  await saveEntries();
+  modalBox.innerHTML = buildNotesLogCard(entry);
+  bindNotesLogCard(modalBox, entry);
+  render();
+}
+
 async function onEditSave(entry){
   const zona = modalBox.querySelector('.edit-zona').value.trim();
   const region = zona === 'Asianet (AMT)' ? modalBox.querySelector('.edit-region').value.trim() : '';
@@ -1398,6 +1563,10 @@ function buildMessage(entry, prevStatus){
     msg += `Status: <b>${escapeTg(entry.status)}</b>\n`;
   }
   if(entry.catatan) msg += `📝 ${escapeTg(entry.catatan)}\n`;
+  if(entry.notes && entry.notes.length){
+    const last = entry.notes[entry.notes.length - 1];
+    msg += `🗒 [${escapeTg(last.type)}] ${escapeTg(last.text)}\n`;
+  }
   msg += `🕒 ${entry.timestamp}`;
   return msg;
 }
@@ -1509,7 +1678,7 @@ function exportToCSV() {
     return;
   }
 
-  const headers = ['ID', 'Kategori/Provider', 'Region', 'Nama Pekerjaan', 'Periode', 'Status Saat Ini', 'Catatan', 'Terakhir Diperbarui', 'Riwayat Status'];
+  const headers = ['ID', 'Kategori/Provider', 'Region', 'Nama Pekerjaan', 'Periode', 'Status Saat Ini', 'Catatan', 'Log Revisi/Kendala', 'Terakhir Diperbarui', 'Riwayat Status'];
   
   const escapeCSV = (str) => {
     if (str === null || str === undefined) return '""';
@@ -1519,6 +1688,7 @@ function exportToCSV() {
 
   const rows = dataToExport.map(entry => {
     const historyTrail = (entry.history || []).map(h => `${h.status} (${h.ts})`).join(' -> ');
+    const notesTrail = (entry.notes || []).map(n => `[${n.type}] ${n.text} (${n.ts})`).join(' | ');
     return [
       escapeCSV(entry.id),
       escapeCSV(entry.zona),
@@ -1527,6 +1697,7 @@ function exportToCSV() {
       escapeCSV(entry.periode || '-'),
       escapeCSV(entry.status),
       escapeCSV(entry.catatan || '-'),
+      escapeCSV(notesTrail || '-'),
       escapeCSV(entry.timestamp),
       escapeCSV(historyTrail)
     ].join(',');
