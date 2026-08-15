@@ -426,6 +426,26 @@
   .copy-provider-btn.iconnet:hover { border-color: var(--ok); color: var(--ok); background: var(--ok-dim); }
   .copy-provider-btn.amt:hover { border-color: var(--warn); color: var(--warn); background: var(--bad-dim); }
 
+  /* ==================== LIVE SEARCH ==================== */
+  .search-box {
+    display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--radius-md); padding: 10px 14px; margin-bottom: 18px; transition: all 0.2s ease;
+  }
+  .search-box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--ok-glow); }
+  .search-box svg { color: var(--muted); flex-shrink: 0; }
+  .search-box input {
+    flex: 1; background: transparent; border: none; outline: none; color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif; font-size: 14px; padding: 0; min-width: 0;
+  }
+  .search-box input::placeholder { color: var(--muted-2); }
+  .search-clear-btn {
+    background: var(--panel-2); border: none; color: var(--muted); width: 20px; height: 20px; border-radius: 50%;
+    cursor: pointer; display: none; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0;
+    transition: all 0.15s ease;
+  }
+  .search-clear-btn:hover { color: var(--text); background: var(--panel-hover); }
+  mark.search-hit { background: var(--ok-glow); color: var(--accent); border-radius: 3px; padding: 0 1px; }
+
   /* ==================== QUICK SECTIONS (Aktif / Perlu Perhatian) ==================== */
   .quick-section { margin-bottom: 26px; }
   .quick-section-title {
@@ -632,6 +652,12 @@
       </button>
     </div>
 
+    <div class="search-box">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <input type="text" id="searchInput" placeholder="Cari pekerjaan, zona, region, status, catatan…" autocomplete="off">
+      <button class="search-clear-btn" id="searchClearBtn" title="Hapus pencarian">✕</button>
+    </div>
+
     <div class="stats" id="statsRow"></div>
     <div class="stats-hint" id="statsHint">Ketuk salah satu status untuk memfilter daftar di bawah.</div>
 
@@ -685,6 +711,7 @@ let editingId = null;
 let editStage = null;
 let expandedGroups = new Set();
 let statusFilter = 'all';
+let searchQuery = '';
 
 const themeToggleBtn = document.getElementById('themeToggleBtn');
 const themeIcon = document.getElementById('themeIcon');
@@ -727,6 +754,8 @@ const importFileInput = document.getElementById('importFileInput');
 const statsHint = document.getElementById('statsHint');
 const copyIconnetBtn = document.getElementById('copyIconnetBtn');
 const copyAmtBtn = document.getElementById('copyAmtBtn');
+const searchInput = document.getElementById('searchInput');
+const searchClearBtn = document.getElementById('searchClearBtn');
 
 let categoryFilter = 'all';
 
@@ -745,6 +774,32 @@ catTabs.addEventListener('click', (e) => {
   categoryFilter = btn.dataset.cat;
   [...catTabs.children].forEach(b => b.classList.toggle('active', b === btn));
   render();
+});
+
+// Live search — filters the Riwayat timeline as the user types.
+let searchDebounceTimer = null;
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => {
+    searchQuery = searchInput.value.trim().toLowerCase();
+    searchClearBtn.style.display = searchQuery ? 'flex' : 'none';
+    render();
+  }, 120);
+});
+searchInput.addEventListener('keydown', (e) => {
+  if(e.key === 'Escape' && searchInput.value){
+    searchInput.value = '';
+    searchQuery = '';
+    searchClearBtn.style.display = 'none';
+    render();
+  }
+});
+searchClearBtn.addEventListener('click', () => {
+  searchInput.value = '';
+  searchQuery = '';
+  searchClearBtn.style.display = 'none';
+  render();
+  searchInput.focus();
 });
 
 // Interactive status summary cards -> filter list
@@ -933,11 +988,23 @@ function getCategoryEntries(){
   return categoryFilter === 'all' ? entries : entries.filter(e => e.zona === categoryFilter);
 }
 
-// Full list respecting provider + status — used for the Riwayat timeline and CSV export.
+// Full list respecting provider + status + live search — used for the Riwayat timeline and CSV export.
 function getFilteredEntries(){
   let list = getCategoryEntries();
   if(statusFilter !== 'all') list = list.filter(e => e.status === statusFilter);
+  if(searchQuery) list = list.filter(e => entryMatchesSearch(e, searchQuery));
   return list;
+}
+
+// Checks a job entry's searchable fields (name, zona, region, periode, status, catatan,
+// status history, and the revision/kendala notes log) against the live search query.
+function entryMatchesSearch(entry, q){
+  const hay = [
+    entry.zona, entry.region, entry.pekerjaan, entry.periode, entry.status, entry.catatan,
+    ...(entry.history || []).map(h => h.status),
+    ...(entry.notes || []).map(n => `${n.type} ${n.text}`)
+  ].filter(Boolean).join(' ').toLowerCase();
+  return hay.includes(q);
 }
 
 // One "latest" entry per pekerjaan group (zona + nama pekerjaan), newest group first.
@@ -1003,6 +1070,7 @@ function render(){
   const filterBits = [];
   if(categoryFilter !== 'all') filterBits.push(categoryFilter);
   if(statusFilter !== 'all') filterBits.push(statusFilter);
+  if(searchQuery) filterBits.push(`"${searchInput.value.trim()}"`);
   listTitle.textContent = filterBits.length ? `Riwayat Pekerjaan — ${filterBits.join(' · ')}` : 'Riwayat Pekerjaan';
 
   // ---- Riwayat timeline ----
@@ -1012,7 +1080,9 @@ function render(){
   if(!hasAnyEntries){
     emptyState.innerHTML = `Belum ada pekerjaan<br><button class="btn btn-primary" id="emptyAddBtn" type="button">+ Tambah Pekerjaan</button>`;
   }else if(!filtered.length){
-    emptyState.innerHTML = `Tidak ada pekerjaan untuk filter ini.<br><span style="font-size:12px;">Coba ubah filter status atau provider.</span>`;
+    emptyState.innerHTML = searchQuery
+      ? `Tidak ada pekerjaan yang cocok dengan pencarian "${escapeHtml(searchInput.value.trim())}".<br><span style="font-size:12px;">Coba kata kunci lain atau hapus pencarian.</span>`
+      : `Tidak ada pekerjaan untuk filter ini.<br><span style="font-size:12px;">Coba ubah filter status atau provider.</span>`;
   }
   if(!filtered.length){
     const addBtn = document.getElementById('emptyAddBtn');
